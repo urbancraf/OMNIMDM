@@ -97,27 +97,25 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({
 
   const currentDepth = getDepth(parentId, currentCategories);
 
-// FIX: Refined filtering logic to correctly distinguish Root from Nested nodes
   const displayedCategories = useMemo(() => {
-								   
-	
-    return currentCategories.filter(c => {
-																				   
+    const isRootTarget = !parentId;
+    
+    let list = currentCategories.filter(c => {
+      // FIX: Filter categories to only those belonging to the active taxonomy tree
       const catType = (c as any).type || 'Primary';
       if (catType !== activeRoot) return false;
 
       const p = c.parentId;
-      const matchesSearch = !searchTerm || c.name.toLowerCase().includes(searchTerm.toLowerCase());
-      
-      if (!parentId) {
-        // Root Level: Only show categories that have no parentId
-        const isRoot = p === null || p === undefined || p === "" || p === "null";
-        return isRoot && matchesSearch;
+      if (isRootTarget) {
+        return !p || p === "" || p === "null" || p === "undefined";
       }
-      
-      // Nested Level: Show categories whose parentId matches the current navigation path
-      return p === parentId && matchesSearch;
+      return p === parentId;
     });
+
+    if (searchTerm) {
+      list = list.filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase()));
+    }
+    return list;
   }, [currentCategories, parentId, searchTerm, activeRoot]);
 
   const selectedCategory = useMemo(() => {
