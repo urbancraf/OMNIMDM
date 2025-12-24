@@ -1,3 +1,4 @@
+
 import { SystemConfig, User } from './types.ts';
 
 // Cache for the infrastructure token
@@ -21,6 +22,7 @@ const mapOutgoing = (data: any) => {
   }
   
   // Hierarchy Mapping: Table 9, 10 & Attribute Groups
+  // Crucial: Ensure parent_id is explicitly sent as null if it's missing or nullish
   if ('parentId' in mapped) { 
     const p = mapped.parentId;
     mapped.parent_id = (p === null || p === undefined || p === "null" || p === "" || p === "undefined") ? null : p; 
@@ -163,24 +165,17 @@ export const api = {
   async updateProduct(config: SystemConfig, id: string, data: any) { return safeFetch(`${getBaseUrl(config)}/mdm_products/${encodeURIComponent(id)}`, config, { method: 'PUT', body: JSON.stringify(data) }); },
   async deleteProduct(config: SystemConfig, id: string) { return safeFetch(`${getBaseUrl(config)}/mdm_products/${encodeURIComponent(id)}`, config, { method: 'DELETE' }); },
 
-  /**
-   * CHANGE: Consolidate all category logic into mdm_categories.
-   * Both primary and secondary categories now live in the same table, 
-   * distinguished by the 'type' field.
-   */
+  // Categories
   async getCategories(config: SystemConfig) { return safeFetch(`${getBaseUrl(config)}/mdm_categories`, config); },
   async createCategory(config: SystemConfig, data: any) { return safeFetch(`${getBaseUrl(config)}/mdm_categories`, config, { method: 'POST', body: JSON.stringify(data) }); },
   async updateCategory(config: SystemConfig, id: string, data: any) { return safeFetch(`${getBaseUrl(config)}/mdm_categories/${encodeURIComponent(id)}`, config, { method: 'PUT', body: JSON.stringify(data) }); },
   async deleteCategory(config: SystemConfig, id: string) { return safeFetch(`${getBaseUrl(config)}/mdm_categories/${encodeURIComponent(id)}`, config, { method: 'DELETE' }); },
 
-  /**
-   * CHANGE: Secondary category methods now also point to mdm_categories.
-   * This ensures that any existing logic still works while using the correct unified table.
-   */
-  async getSecondaryCategories(config: SystemConfig) { return safeFetch(`${getBaseUrl(config)}/mdm_categories`, config); },
-  async createSecondaryCategory(config: SystemConfig, data: any) { return safeFetch(`${getBaseUrl(config)}/mdm_categories`, config, { method: 'POST', body: JSON.stringify(data) }); },
-  async updateSecondaryCategory(config: SystemConfig, id: string, data: any) { return safeFetch(`${getBaseUrl(config)}/mdm_categories/${encodeURIComponent(id)}`, config, { method: 'PUT', body: JSON.stringify(data) }); },
-  async deleteSecondaryCategory(config: SystemConfig, id: string) { return safeFetch(`${getBaseUrl(config)}/mdm_categories/${encodeURIComponent(id)}`, config, { method: 'DELETE' }); },
+  // Secondary Categories (Table 10)
+  async getSecondaryCategories(config: SystemConfig) { return safeFetch(`${getBaseUrl(config)}/mdm_secondary_categories`, config); },
+  async createSecondaryCategory(config: SystemConfig, data: any) { return safeFetch(`${getBaseUrl(config)}/mdm_secondary_categories`, config, { method: 'POST', body: JSON.stringify(data) }); },
+  async updateSecondaryCategory(config: SystemConfig, id: string, data: any) { return safeFetch(`${getBaseUrl(config)}/mdm_secondary_categories/${encodeURIComponent(id)}`, config, { method: 'PUT', body: JSON.stringify(data) }); },
+  async deleteSecondaryCategory(config: SystemConfig, id: string) { return safeFetch(`${getBaseUrl(config)}/mdm_secondary_categories/${encodeURIComponent(id)}`, config, { method: 'DELETE' }); },
 
   // Attribute Groups (Best Practice UI)
   async getAttributeGroups(config: SystemConfig) { return safeFetch(`${getBaseUrl(config)}/mdm_attribute_groups`, config); },
