@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   LayoutDashboard, 
@@ -95,10 +94,10 @@ const App: React.FC = () => {
     if (!currentUser) return;
     setIsLoading(true);
     try {
-      const [pRes, pcRes, scRes, aRes, gRes, rRes, capRes, uRes, permRes, wRes, iRes] = await Promise.allSettled([
+      // FIX: Fetch all categories from single table, then split by type
+      const [pRes, catRes, aRes, gRes, rRes, capRes, uRes, permRes, wRes, iRes] = await Promise.allSettled([
         api.getProducts(activeConfig),
-        api.getCategories(activeConfig),
-        api.getSecondaryCategories(activeConfig),
+        api.getCategories(activeConfig),  // ← Single source for ALL categories
         api.getAttributes(activeConfig),
         api.getAttributeGroups(activeConfig),
         api.getRoles(activeConfig),
@@ -109,18 +108,18 @@ const App: React.FC = () => {
         api.getIntegrations(activeConfig)
       ]);
 
-      const process = (res: PromiseSettledResult<any>, setter: (v: any) => void) => {
+      const process = (res: PromiseSettledResult<any>, setter?: (v: any) => void) => {
         if (res.status === 'fulfilled') {
           const data = res.value;
-          setter(Array.isArray(data) ? data : (data?.data || []));
-          return data;
+          const processed = Array.isArray(data) ? data : (data?.data || []);
+          if (setter) setter(processed);
+          return processed;
         }
         return [];
       };
 
+      // Process standard entities
       process(pRes, setProducts);
-      process(pcRes, setPrimaryCategories);
-      process(scRes, setSecondaryCategories);
       process(aRes, setMasterAttributes);
       process(gRes, setAttributeGroups);
       process(rRes, setUserRoles);
@@ -129,14 +128,53 @@ const App: React.FC = () => {
       process(wRes, setWorkflowBlueprints);
       process(iRes, setIntegrations);
       process(permRes, setGlobalPermissions);
+
+      // FIX: Split categories by type field
+      const allCategories = process(catRes);
+      
+      console.log('📦 Raw Categories from DB:', allCategories.length, allCategories.slice(0, 3));
+      
+      // Filter and separate by type
+      const primaryCats = allCategories.filter((c: any) => {
+        const type = c.type || 'Primary'; // Default to Primary for backward compatibility
+        return type === 'Primary';
+      });
+      
+      const secondaryCats = allCategories.filter((c: any) => {
+        const type = c.type || 'Primary';
+        return type === 'Secondary';
+      });
+
+      console.log('🔵 Primary Categories:', primaryCats.length, primaryCats.map((c: any) => ({
+        name: c.name,
+        id: c.id?.substring(0, 8),
+        parentId: c.parentId?.substring(0, 8) || 'NULL',
+        type: c.type
+      })));
+      
+      console.log('🟣 Secondary Categories:', secondaryCats.length, secondaryCats.map((c: any) => ({
+        name: c.name,
+        id: c.id?.substring(0, 8),
+        parentId: c.parentId?.substring(0, 8) || 'NULL',
+        type: c.type
+      })));
+
+      setPrimaryCategories(primaryCats);
+      setSecondaryCategories(secondaryCats);
+
     } catch (err: any) {
-      console.error("Data sync error:", err);
+      console.error("❌ Data sync error:", err);
     } finally {
       setIsLoading(false);
     }
   }, [activeConfig, currentUser]);
 
-  useEffect(() => { if (currentUser) refreshAllData(); }, [currentUser, refreshAllData]);
+  useEffect(() => { 
+    if (currentUser) {
+      console.log('🚀 Initial data refresh triggered');
+      refreshAllData(); 
+    }
+  }, [currentUser, refreshAllData]);
 
   const commonWorkflowProps = {
     currentUser: currentUser!,
