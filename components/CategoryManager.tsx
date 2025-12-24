@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { 
   ChevronRight, 
@@ -6,15 +7,26 @@ import {
   Edit, 
   Trash, 
   Search,
+  ArrowLeft,
+  Package,
   ExternalLink,
+  Info,
   X,
   Layers,
+  Tag,
+  AlertCircle,
+  Save,
+  Undo2,
   AlertTriangle,
   ShieldAlert,
-  RefreshCw,
+  ChevronLeft,
+  MoreVertical,
+  Activity,
+  History,
   GitBranch,
   Network,
-  List
+  List,
+  RefreshCw
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Product, Category, SystemConfig } from '../types';
@@ -43,10 +55,14 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({
   onRefresh
 }) => {
   const [activeRoot, setActiveRoot] = useState<'Primary' | 'Secondary'>('Primary');
-  const [currentPath, setCurrentPath] = useState<string[]>([]); 
+  const [currentPath, setCurrentPath] = useState<string[]>([]); // Array of category IDs
   const [searchTerm, setSearchTerm] = useState('');
   const [inspectorTab, setInspectorTab] = useState<'details' | 'structure'>('details');
   
+  useEffect(() => {
+    onRefresh();
+  }, []);
+
   // Selection & Modal States
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -57,11 +73,8 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({
   const [editName, setEditName] = useState('');
   const [editDesc, setEditDesc] = useState('');
 
-  useEffect(() => {
-    onRefresh();
-  }, [onRefresh]);
-
-  // Use the partitioned lists from props based on activeRoot
+  // Partition the categories based on the logical "type" discriminator.
+  // If 'type' is missing, we treat it as 'Primary' for backward compatibility.
   const currentCategories = activeRoot === 'Primary' ? primaryCategories : secondaryCategories;
   const currentDepthLimit = activeRoot === 'Primary' ? MAX_DEPTH_PRIMARY : MAX_DEPTH_SECONDARY;
 
@@ -88,6 +101,10 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({
     const isRootTarget = !parentId;
     
     let list = currentCategories.filter(c => {
+      // FIX: Filter categories to only those belonging to the active taxonomy tree
+      const catType = (c as any).type || 'Primary';
+      if (catType !== activeRoot) return false;
+
       const p = c.parentId;
       if (isRootTarget) {
         return !p || p === "" || p === "null" || p === "undefined";
@@ -99,12 +116,16 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({
       list = list.filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase()));
     }
     return list;
-  }, [currentCategories, parentId, searchTerm]);
+  }, [currentCategories, parentId, searchTerm, activeRoot]);
 
   const selectedCategory = useMemo(() => {
     if (!selectedCategoryId) return null;
     const cat = currentCategories.find(c => c.id === selectedCategoryId);
     if (!cat) return null;
+
+    // FIX: Verify selected category matches the active tab's root type
+    const catType = (cat as any).type || 'Primary';
+    if (catType !== activeRoot) return null;
 
     const assocProducts = products.filter(p => 
       activeRoot === 'Primary' ? p.primaryCategory === cat.name : p.secondaryCategory === cat.name
@@ -113,13 +134,12 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({
     return { ...cat, products: assocProducts, count: assocProducts.length };
   }, [selectedCategoryId, currentCategories, products, activeRoot]);
 
-  // Helper to count sub-nodes for display
-  const getSubNodeCount = (catId: string) => {
-    return currentCategories.filter(c => c.parentId === catId).length;
-  };
-
   const TreeBranch: React.FC<{ parentId: string, depth: number }> = ({ parentId, depth }) => {
-    const children = currentCategories.filter(c => c.parentId === parentId);
+    const children = currentCategories.filter(c => {
+        const catType = (c as any).type || 'Primary';
+        return c.parentId === parentId && catType === activeRoot;
+    });
+    
     if (children.length === 0) return null;
 
     return (
@@ -134,7 +154,7 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({
               <div className="flex-1">
                 <p className="text-xs font-bold truncate">{child.name}</p>
                 <p className={`text-[8px] font-black uppercase tracking-widest mt-0.5 ${selectedCategoryId === child.id ? 'text-indigo-200' : 'text-slate-400'}`}>
-                  {getSubNodeCount(child.id)} Sub-nodes
+                  {currentCategories.filter(c => c.parentId === child.id && ((c as any).type || 'Primary') === activeRoot).length} Sub-nodes
                 </p>
               </div>
             </button>
@@ -151,12 +171,13 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({
       return;
     }
 
+    // FIX: Assign 'type' property to ensure the new category is saved in the correct taxonomy tree.
     const newCat: any = {
       id: crypto.randomUUID(),
       name: name.trim(),
       description: desc.trim() || `Sub-category in ${activeRoot}`,
       parentId: parentId || null,
-      type: activeRoot // Explicitly tag with taxonomy type
+      type: activeRoot 
     };
 
     try {
@@ -164,7 +185,7 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({
       onRefresh();
       setIsAddModalOpen(false);
     } catch (err) {
-      alert("Failed to persist category to database.");
+      alert("Failed to persist category to database. Verify connection or table schema.");
     }
   };
 
@@ -172,11 +193,13 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({
     if (!selectedCategory) return;
     const oldName = selectedCategory.name;
     
+    // FIX: Preserve the 'type' discriminator during updates.
     const updatedPayload: any = {
-      ...selectedCategory,
+      id: selectedCategory.id,
       name: editName,
       description: editDesc,
-      type: activeRoot // Maintain discriminator
+      parentId: selectedCategory.parentId,
+      type: (selectedCategory as any).type || 'Primary'
     };
     
     try {
@@ -210,19 +233,25 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({
           <p className="text-sm text-slate-400 font-medium mt-2">Manage hierarchical lineages for complex catalogs.</p>
         </div>
         <div className="flex items-center gap-4">
-          <button onClick={onRefresh} className="flex items-center gap-2 px-6 py-2.5 bg-white text-indigo-600 border border-indigo-100 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-indigo-50 transition-all shadow-sm">
+          <button 
+            onClick={onRefresh}
+            className="flex items-center gap-2 px-6 py-2.5 bg-white text-indigo-600 border border-indigo-100 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-indigo-50 transition-all shadow-sm"
+          >
             <RefreshCw size={14} /> Pull DB
           </button>
           <div className="p-1.5 bg-slate-100 rounded-[1.5rem] flex gap-1">
-            {(['Primary', 'Secondary'] as const).map((type) => (
-               <button 
-               key={type}
-               onClick={() => { setActiveRoot(type); setCurrentPath([]); setSelectedCategoryId(null); setIsEditing(false); }}
-               className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeRoot === type ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-             >
-               {type}
-             </button>
-            ))}
+            <button 
+              onClick={() => { setActiveRoot('Primary'); setCurrentPath([]); setSelectedCategoryId(null); setIsEditing(false); }}
+              className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeRoot === 'Primary' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+            >
+              Primary
+            </button>
+            <button 
+              onClick={() => { setActiveRoot('Secondary'); setCurrentPath([]); setSelectedCategoryId(null); setIsEditing(false); }}
+              className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeRoot === 'Secondary' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+            >
+              Secondary
+            </button>
           </div>
         </div>
       </header>
@@ -269,7 +298,8 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({
                 disabled={currentDepth >= currentDepthLimit}
                 className={`flex items-center gap-2 px-5 py-3 rounded-2xl font-bold text-xs uppercase tracking-widest transition-all ${currentDepth >= currentDepthLimit ? 'bg-slate-50 text-slate-300 cursor-not-allowed' : 'bg-slate-900 text-white hover:bg-slate-800 shadow-lg shadow-slate-200'}`}
               >
-                <FolderPlus size={18} /> Sub-Category
+                <FolderPlus size={18} />
+                Sub-Category
               </button>
             </div>
 
@@ -278,7 +308,10 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({
                 displayedCategories.map(cat => (
                   <div key={cat.id} className="flex items-center group">
                     <button 
-                      onClick={() => { setSelectedCategoryId(cat.id); setIsEditing(false); }}
+                      onClick={() => {
+                        setSelectedCategoryId(cat.id);
+                        setIsEditing(false);
+                      }}
                       className={`flex-1 flex items-center gap-6 p-8 text-left transition-all ${selectedCategoryId === cat.id ? 'bg-indigo-50/50' : 'hover:bg-slate-50/50'}`}
                     >
                       <div className={`p-4 rounded-2xl transition-all shadow-sm ${selectedCategoryId === cat.id ? 'bg-white text-indigo-600' : 'bg-slate-50 text-slate-300 group-hover:scale-110'}`}>
@@ -287,12 +320,15 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({
                       <div className="flex-1">
                         <p className={`font-black tracking-tight text-lg ${selectedCategoryId === cat.id ? 'text-indigo-900' : 'text-slate-900'}`}>{cat.name}</p>
                         <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
-                          {getSubNodeCount(cat.id)} Sub-nodes • {products.filter(p => activeRoot === 'Primary' ? p.primaryCategory === cat.name : p.secondaryCategory === cat.name).length} SKUs
+                          {currentCategories.filter(c => c.parentId === cat.id && ((c as any).type || 'Primary') === activeRoot).length} Sub-nodes • {products.filter(p => activeRoot === 'Primary' ? p.primaryCategory === cat.name : p.secondaryCategory === cat.name).length} SKUs
                         </p>
                       </div>
                     </button>
                     <button 
-                      onClick={() => { setCurrentPath([...currentPath, cat.id]); setSearchTerm(''); }}
+                      onClick={() => {
+                        setCurrentPath([...currentPath, cat.id]);
+                        setSearchTerm('');
+                      }}
                       className="p-8 text-slate-300 hover:text-indigo-600 transition-all border-l border-slate-50"
                     >
                       <ChevronRight size={24} />
@@ -322,11 +358,21 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({
                     </div>
                     <div>
                       <h3 className="text-2xl font-black text-slate-900 tracking-tighter">{selectedCategory.name}</h3>
-                      <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mt-1">Node Identity Inspector ({activeRoot})</p>
+                      <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mt-1">
+                        Node Identity Inspector ({activeRoot})
+                      </p>
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <button onClick={() => { setEditName(selectedCategory.name); setEditDesc(selectedCategory.description || ''); setIsEditing(true); setInspectorTab('details'); }} className="p-3 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all">
+                    <button 
+                      onClick={() => { 
+                        setEditName(selectedCategory.name); 
+                        setEditDesc(selectedCategory.description || ''); 
+                        setIsEditing(true); 
+                        setInspectorTab('details');
+                      }} 
+                      className="p-3 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all"
+                    >
                       <Edit size={20} />
                     </button>
                     <button onClick={() => setIsDeleteModalOpen(true)} className="p-3 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all">
@@ -336,10 +382,16 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({
                 </div>
 
                 <div className="p-1 bg-slate-50 rounded-2xl flex gap-1">
-                  <button onClick={() => setInspectorTab('details')} className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${inspectorTab === 'details' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
+                  <button 
+                    onClick={() => setInspectorTab('details')}
+                    className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${inspectorTab === 'details' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                  >
                     <List size={14} /> Details
                   </button>
-                  <button onClick={() => setInspectorTab('structure')} className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${inspectorTab === 'structure' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}>
+                  <button 
+                    onClick={() => setInspectorTab('structure')}
+                    className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${inspectorTab === 'structure' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                  >
                     <Network size={14} /> Structure Map
                   </button>
                 </div>
@@ -368,6 +420,7 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({
                         <h4 className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-4">Architecture Objective</h4>
                         <p className="text-sm font-medium text-slate-500 leading-relaxed italic">"{selectedCategory.description || 'No objective defined.'}"</p>
                       </div>
+
                       <div className="grid grid-cols-2 gap-4">
                         <div className="p-6 bg-[#F2F2F7] rounded-[2rem] border border-slate-100">
                           <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mb-1">SKUs Assigned</p>
@@ -375,9 +428,10 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({
                         </div>
                         <div className="p-6 bg-[#F2F2F7] rounded-[2rem] border border-slate-100">
                           <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1">Successors</p>
-                          <p className="text-3xl font-black text-slate-900 tracking-tighter">{getSubNodeCount(selectedCategory.id)}</p>
+                          <p className="text-3xl font-black text-slate-900 tracking-tighter">{currentCategories.filter(c => c.parentId === selectedCategory.id && ((c as any).type || 'Primary') === activeRoot).length}</p>
                         </div>
                       </div>
+
                       <div className="pt-8 border-t border-slate-50">
                         <h4 className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-6">Linked Assets</h4>
                         <div className="space-y-4">
@@ -408,12 +462,15 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({
                 ) : (
                   <div className="animate-in fade-in duration-500">
                     <div className="flex items-center gap-4 mb-8">
-                       <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl"><Network size={20} /></div>
+                       <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl">
+                          <Network size={20} />
+                       </div>
                        <div>
                           <h4 className="text-sm font-black text-slate-900 uppercase tracking-tight">Downstream Topology</h4>
                           <p className="text-[10px] text-slate-400 font-medium">Visualizing inherited hierarchy branches.</p>
                        </div>
                     </div>
+                    
                     <div className="p-6 bg-slate-50 rounded-[2.5rem] border border-slate-100 shadow-inner">
                       <div className="flex items-center gap-3 p-3 bg-indigo-600 text-white rounded-xl shadow-lg mb-4">
                         <Folder size={16} />
@@ -451,6 +508,7 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({
                 <X size={24} />
               </button>
             </div>
+            
             <form onSubmit={(e) => { e.preventDefault(); const d = new FormData(e.currentTarget); handleAddCategory(d.get('name') as string, d.get('desc') as string); }} className="p-10 space-y-8">
               <div className="space-y-6">
                 <div className="space-y-2">
@@ -472,21 +530,22 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xl z-[110] flex items-center justify-center p-6 animate-in fade-in duration-300">
           <div className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-400">
             <div className="p-10 text-center space-y-8">
-              <div className={`mx-auto w-24 h-24 rounded-[2rem] flex items-center justify-center shadow-xl ${selectedCategory.count > 0 || getSubNodeCount(selectedCategory.id) > 0 ? 'bg-amber-100 text-amber-600' : 'bg-red-100 text-red-600'}`}>
-                {selectedCategory.count > 0 || getSubNodeCount(selectedCategory.id) > 0 ? <ShieldAlert size={48} /> : <AlertTriangle size={48} />}
+              <div className={`mx-auto w-24 h-24 rounded-[2rem] flex items-center justify-center shadow-xl ${selectedCategory.count > 0 ? 'bg-amber-100 text-amber-600' : 'bg-red-100 text-red-600'}`}>
+                {selectedCategory.count > 0 ? <ShieldAlert size={48} /> : <AlertTriangle size={48} />}
               </div>
+              
               <div>
                 <h3 className="text-2xl font-black text-slate-900 tracking-tighter">
-                  {selectedCategory.count > 0 || getSubNodeCount(selectedCategory.id) > 0 ? 'Architectural Constraint' : 'Confirm Removal'}
+                  {selectedCategory.count > 0 ? 'Architectural Constraint' : 'Confirm Removal'}
                 </h3>
                 <p className="text-sm text-slate-400 font-medium mt-3 leading-relaxed">
                   Removing <span className="font-bold text-slate-900">"{selectedCategory.name}"</span> will erase this structural branch.
-                  {selectedCategory.count > 0 && ` Action restricted: ${selectedCategory.count} SKUs are linked.`}
-                  {getSubNodeCount(selectedCategory.id) > 0 && ` Action restricted: ${getSubNodeCount(selectedCategory.id)} sub-categories exist.`}
+                  {selectedCategory.count > 0 && ` Action restricted: ${selectedCategory.count} SKUs are linked. Reassign them before deletion.`}
                 </p>
               </div>
+
               <div className="flex flex-col gap-4">
-                {(selectedCategory.count === 0 && getSubNodeCount(selectedCategory.id) === 0) ? (
+                {selectedCategory.count === 0 ? (
                   <>
                     <button onClick={confirmDelete} className="w-full py-5 bg-red-600 text-white rounded-[1.5rem] font-black tracking-tight hover:bg-red-700 transition-all">Yes, Remove Node</button>
                     <button onClick={() => setIsDeleteModalOpen(false)} className="w-full py-5 bg-slate-100 text-slate-500 rounded-[1.5rem] font-black hover:bg-slate-200 transition-all">Cancel</button>
