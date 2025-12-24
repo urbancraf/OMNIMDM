@@ -89,7 +89,9 @@ const mapIncoming = (data: any): any => {
   // FIX: Map parent_id from database to parentId for UI
   if ('parent_id' in mapped) {
     const p = mapped.parent_id;
-    mapped.parentId = (p === null || p === "null" || p === "undefined" || p === "") ? null : p;
+// fix for category changes
+    //mapped.parentId = (p === null || p === "null" || p === "undefined" || p === "") ? null : p;
+	mapped.parentId = (p === null || p === undefined || p === "null" || p === "undefined" || String(p).trim() === "") ? null : String(p);
     
     // DEBUG LOG
     console.log('🔄 mapIncoming parent_id:', {
