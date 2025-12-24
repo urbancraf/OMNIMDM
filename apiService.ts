@@ -27,9 +27,9 @@ const mapOutgoing = (data: any) => {
     mapped.parent_id = (p === null || p === undefined || p === "null" || p === "" || p === "undefined") ? null : p;
     delete mapped.parentId;
 
-  if (!mapped.type) {
-	mapped.type = 'Primary'; 
-  }
+//  if (!mapped.type) {
+//	mapped.type = 'Primary'; 
+//  }
     
     // DEBUG LOG
     console.log('🔄 mapOutgoing parent_id:', {
