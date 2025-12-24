@@ -1,3 +1,4 @@
+
 import { SystemConfig, User } from './types.ts';
 
 // Cache for the infrastructure token
@@ -20,12 +21,32 @@ const mapOutgoing = (data: any) => {
     delete mapped.longDescription;
   }
   
-  // Hierarchy Mapping: Table 9 (Categories) - CRITICAL FIX
+  // Hierarchy Mapping: Table 9, 10 & Attribute Groups
+  // Crucial: Ensure parent_id is explicitly sent as null if it's missing or nullish
   if ('parentId' in mapped) { 
     const p = mapped.parentId;
-    // FIX: Ensure parent_id is explicitly sent as null if it's missing or nullish
-    mapped.parent_id = (p === null || p === undefined || p === "null" || p === "" || p === "undefined") ? null : p;
+    mapped.parent_id = (p === null || p === undefined || p === "null" || p === "" || p === "undefined") ? null : p; 
     delete mapped.parentId; 
+  }
+  
+  // Table 11: mdm_attributes - Map Group ID
+  if ('groupId' in mapped) {
+    mapped.group_id = mapped.groupId || null;
+    delete mapped.groupId;
+  }
+
+  // Common Timestamps
+  if ('updatedAt' in mapped) { mapped.updated_at = mapped.updatedAt; delete mapped.updatedAt; }
+  if ('createdAt' in mapped) { mapped.created_at = mapped.createdAt; delete mapped.createdAt; }
+
+  if ('attributes' in mapped && Array.isArray(mapped.attributes)) {
+    mapped.attributes = JSON.stringify(mapped.attributes);
+  }
+  if ('images' in mapped && Array.isArray(mapped.images)) {
+    mapped.images = JSON.stringify(mapped.images);
+  }
+  if ('config' in mapped && typeof mapped.config === 'object') {
+    mapped.config = JSON.stringify(mapped.config);
   }
 
   return mapped;
@@ -33,291 +54,159 @@ const mapOutgoing = (data: any) => {
 
 const mapIncoming = (data: any): any => {
   if (!data || typeof data !== 'object') return data;
+  if (Array.isArray(data)) return data.map(mapIncoming);
   
-  // FIX 1: Recursively map arrays
-  if (Array.isArray(data)) {
-    return data.map(mapIncoming);
-  }
-
-  // FIX 2: Handle Backend Wrapper { data: [...] }
-  // This ensures items inside the data property are mapped correctly
-  if (data.data && Array.isArray(data.data)) {
-    return {
-      ...data,
-      data: data.data.map(mapIncoming)
-    };
-  }
-
   const mapped = { ...data };
-
-  // Permission mapping
-  if ('permission_key' in mapped) { mapped.code = mapped.permission_key; }
-
-  // Product category mapping
-  if ('category_id' in mapped) { mapped.primaryCategory = mapped.category_id; }
-  if ('secondary_category_id' in mapped) { mapped.secondaryCategory = mapped.secondary_category_id; }
-
-  // Description splitting
-  if ('description' in mapped && typeof mapped.description === 'string') {
+  
+  if ('updated_at' in mapped) mapped.updatedAt = mapped.updated_at;
+  if ('created_at' in mapped) mapped.createdAt = mapped.created_at;
+  
+  if ('category_id' in mapped) mapped.primaryCategory = mapped.category_id;
+  if ('secondary_category_id' in mapped) mapped.secondaryCategory = mapped.secondary_category_id;
+  
+  if ('description' in mapped && !mapped.shortDescription) {
     const parts = mapped.description.split('\n\n');
     mapped.shortDescription = parts[0] || '';
     mapped.longDescription = parts.slice(1).join('\n\n') || '';
   }
 
-  // FIX 3: Hierarchy Mapping (Resilient parentId)
-  // Ensures the UI can match string IDs in the currentPath stack
-  if ('parent_id' in mapped) { 
+  if ('parent_id' in mapped) {
     const p = mapped.parent_id;
-    mapped.parentId = (p === null || p === undefined || p === "null" || p === "undefined" || String(p).trim() === "") ? null : String(p);
+    mapped.parentId = (p === null || p === "null" || p === "undefined" || p === "") ? null : p;
   }
-//  console.log("Mapped Data:", mapped);
+
+  if ('group_id' in mapped) {
+    mapped.groupId = mapped.group_id;
+  }
+
+  if ('permission_key' in mapped) mapped.code = mapped.permission_key;
+  
+  const parseJsonSafe = (val: any) => {
+    if (!val) return [];
+    if (typeof val === 'object') return val;
+    try { return JSON.parse(val); } catch { return []; }
+  };
+
+  if ('attributes' in mapped) mapped.attributes = parseJsonSafe(mapped.attributes);
+  if ('images' in mapped) mapped.images = parseJsonSafe(mapped.images);
+  if ('config' in mapped) {
+    mapped.config = typeof mapped.config === 'string' ? JSON.parse(mapped.config) : mapped.config;
+  }
+  
   return mapped;
 };
 
-const getBaseUrl = (config: SystemConfig) => {
-  const host = config.apiHost.replace(/\/$/, '');
-  const port = config.apiPort ? `:${config.apiPort}` : '';
-  return `${host}${port}/api/v1`;
-};
-
-const getAuthHeader = (config: SystemConfig) => {
-  return `Basic ${btoa(`${config.apiUser}:${config.apiPassword}`)}`;
-};
-
-async function getInfraToken(config: SystemConfig): Promise<string | null> {
+const ensureToken = async (config: SystemConfig): Promise<string | null> => {
   if (cachedToken) return cachedToken;
   if (refreshPromise) return refreshPromise;
-
+  
   refreshPromise = (async () => {
     try {
-      const response = await fetch(`${getBaseUrl(config)}/infrastructure/token`, {
+      const loginUrl = `${config.dbHost.replace(/\/$/, '')}/login`;
+      const response = await fetch(loginUrl, {
         method: 'POST',
-        headers: { 'Authorization': getAuthHeader(config) }
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: config.dbUser, password: config.dbPass })
       });
-      if (!response.ok) throw new Error('Failed to get infra token');
       const data = await response.json();
-      const token = data.token || data.data?.token;
+      const token = data.token || data.accessToken || data.data?.token;
       if (token) {
-        localStorage.setItem('omnipim_infra_token', token);
         cachedToken = token;
+        localStorage.setItem('omnipim_infra_token', token);
+        return token;
       }
-      return token;
-    } catch (error) {
-      console.error('Infra Token Error:', error);
       return null;
-    } finally {
-      refreshPromise = null;
-    }
+    } catch { return null; }
   })();
 
-  return refreshPromise;
-}
+  const token = await refreshPromise;
+  refreshPromise = null;
+  return token;
+};
 
-async function safeFetch(url: string, config: SystemConfig, options: RequestInit = {}) {
-  const token = await getInfraToken(config);
-  const headers = {
-    'Content-Type': 'application/json',
-    'Authorization': getAuthHeader(config),
-    ...(token ? { 'X-Infra-Token': token } : {}),
-    ...(options.headers || {})
-  };
+const safeFetch = async (url: string, config: SystemConfig, options: RequestInit = {}): Promise<any> => {
+  const token = await ensureToken(config);
+  if (!token) throw new Error("AUTH_FAILURE");
 
-  const response = await fetch(url, { ...options, headers });
-  
-  if (response.status === 401) {
-    localStorage.removeItem('omnipim_infra_token');
-    cachedToken = null;
+  let body = options.body;
+  if (body && typeof body === 'string') {
+    try { body = JSON.stringify(mapOutgoing(JSON.parse(body))); } catch {}
   }
 
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
-  }
+  const response = await fetch(url, {
+    ...options,
+    body,
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'X-INFRA-TOKEN': token,
+      'Content-Type': 'application/json',
+      ...(options.headers || {})
+    }
+  });
 
-  const rawData = await response.json();
-  return mapIncoming(rawData);
-}
+  if (!response.ok) throw new Error(await response.text());
+  const contentType = response.headers.get("content-type");
+  if (contentType?.includes("application/json")) {
+    const data = await response.json();
+    return mapIncoming(data);
+  }
+  return null;
+};
+
+const getBaseUrl = (config: SystemConfig) => `${config.dbHost.trim().replace(/\/$/, '')}/api/data`;
 
 export const api = {
   // Products
-  async getProducts(config: SystemConfig) { 
-    return safeFetch(`${getBaseUrl(config)}/mdm_products`, config); 
-  },
+  async getProducts(config: SystemConfig) { return safeFetch(`${getBaseUrl(config)}/mdm_products`, config); },
   async createProduct(config: SystemConfig, data: any) { 
-    return safeFetch(`${getBaseUrl(config)}/mdm_products`, config, { 
-      method: 'POST', 
-      body: JSON.stringify(mapOutgoing(data)) 
-    }); 
+    const user = JSON.parse(localStorage.getItem('omnipim_user') || '{}');
+    return safeFetch(`${getBaseUrl(config)}/mdm_products`, config, { method: 'POST', body: JSON.stringify({ ...data, created_by: user.id }) }); 
   },
-  async updateProduct(config: SystemConfig, id: string, data: any) { 
-    return safeFetch(`${getBaseUrl(config)}/mdm_products/${encodeURIComponent(id)}`, config, { 
-      method: 'PUT', 
-      body: JSON.stringify(mapOutgoing(data)) 
-    }); 
-  },
-  async deleteProduct(config: SystemConfig, id: string) { 
-    return safeFetch(`${getBaseUrl(config)}/mdm_products/${encodeURIComponent(id)}`, config, { 
-      method: 'DELETE' 
-    }); 
-  },
+  async updateProduct(config: SystemConfig, id: string, data: any) { return safeFetch(`${getBaseUrl(config)}/mdm_products/${encodeURIComponent(id)}`, config, { method: 'PUT', body: JSON.stringify(data) }); },
+  async deleteProduct(config: SystemConfig, id: string) { return safeFetch(`${getBaseUrl(config)}/mdm_products/${encodeURIComponent(id)}`, config, { method: 'DELETE' }); },
 
   // Categories
-  async getCategories(config: SystemConfig) { 
-    return safeFetch(`${getBaseUrl(config)}/mdm_categories`, config); 
-  },
-  async createCategory(config: SystemConfig, data: any) { 
-    return safeFetch(`${getBaseUrl(config)}/mdm_categories`, config, { 
-      method: 'POST', 
-      body: JSON.stringify(mapOutgoing(data)) 
-    }); 
-  },
-  async updateCategory(config: SystemConfig, id: string, data: any) { 
-    return safeFetch(`${getBaseUrl(config)}/mdm_categories/${encodeURIComponent(id)}`, config, { 
-      method: 'PUT', 
-      body: JSON.stringify(mapOutgoing(data)) 
-    }); 
-  },
-  async deleteCategory(config: SystemConfig, id: string) { 
-    return safeFetch(`${getBaseUrl(config)}/mdm_categories/${encodeURIComponent(id)}`, config, { 
-      method: 'DELETE' 
-    }); 
-  },
+  async getCategories(config: SystemConfig) { return safeFetch(`${getBaseUrl(config)}/mdm_categories`, config); },
+  async createCategory(config: SystemConfig, data: any) { return safeFetch(`${getBaseUrl(config)}/mdm_categories`, config, { method: 'POST', body: JSON.stringify(data) }); },
+  async updateCategory(config: SystemConfig, id: string, data: any) { return safeFetch(`${getBaseUrl(config)}/mdm_categories/${encodeURIComponent(id)}`, config, { method: 'PUT', body: JSON.stringify(data) }); },
+  async deleteCategory(config: SystemConfig, id: string) { return safeFetch(`${getBaseUrl(config)}/mdm_categories/${encodeURIComponent(id)}`, config, { method: 'DELETE' }); },
 
-  // Attributes
-  async getAttributes(config: SystemConfig) { 
-    return safeFetch(`${getBaseUrl(config)}/mdm_attributes`, config); 
-  },
-  async createAttribute(config: SystemConfig, data: any) { 
-    return safeFetch(`${getBaseUrl(config)}/mdm_attributes`, config, { 
-      method: 'POST', 
-      body: JSON.stringify(mapOutgoing(data)) 
-    }); 
-  },
-  async updateAttribute(config: SystemConfig, id: string, data: any) { 
-    return safeFetch(`${getBaseUrl(config)}/mdm_attributes/${encodeURIComponent(id)}`, config, { 
-      method: 'PUT', 
-      body: JSON.stringify(mapOutgoing(data)) 
-    }); 
-  },
-  async deleteAttribute(config: SystemConfig, id: string) { 
-    return safeFetch(`${getBaseUrl(config)}/mdm_attributes/${encodeURIComponent(id)}`, config, { 
-      method: 'DELETE' 
-    }); 
-  },
+  // Secondary Categories (Table 10)
+  async getSecondaryCategories(config: SystemConfig) { return safeFetch(`${getBaseUrl(config)}/mdm_secondary_categories`, config); },
+  async createSecondaryCategory(config: SystemConfig, data: any) { return safeFetch(`${getBaseUrl(config)}/mdm_secondary_categories`, config, { method: 'POST', body: JSON.stringify(data) }); },
+  async updateSecondaryCategory(config: SystemConfig, id: string, data: any) { return safeFetch(`${getBaseUrl(config)}/mdm_secondary_categories/${encodeURIComponent(id)}`, config, { method: 'PUT', body: JSON.stringify(data) }); },
+  async deleteSecondaryCategory(config: SystemConfig, id: string) { return safeFetch(`${getBaseUrl(config)}/mdm_secondary_categories/${encodeURIComponent(id)}`, config, { method: 'DELETE' }); },
 
-  // Attribute Groups
-  async getAttributeGroups(config: SystemConfig) { 
-    return safeFetch(`${getBaseUrl(config)}/mdm_attribute_groups`, config); 
-  },
-  async createAttributeGroup(config: SystemConfig, data: any) { 
-    return safeFetch(`${getBaseUrl(config)}/mdm_attribute_groups`, config, { 
-      method: 'POST', 
-      body: JSON.stringify(data) 
-    }); 
-  },
-  async updateAttributeGroup(config: SystemConfig, id: string, data: any) { 
-    return safeFetch(`${getBaseUrl(config)}/mdm_attribute_groups/${encodeURIComponent(id)}`, config, { 
-      method: 'PUT', 
-      body: JSON.stringify(data) 
-    }); 
-  },
-  async deleteAttributeGroup(config: SystemConfig, id: string) { 
-    return safeFetch(`${getBaseUrl(config)}/mdm_attribute_groups/${encodeURIComponent(id)}`, config, { 
-      method: 'DELETE' 
-    }); 
-  },
+  // Attribute Groups (Best Practice UI)
+  async getAttributeGroups(config: SystemConfig) { return safeFetch(`${getBaseUrl(config)}/mdm_attribute_groups`, config); },
+  async createAttributeGroup(config: SystemConfig, data: any) { return safeFetch(`${getBaseUrl(config)}/mdm_attribute_groups`, config, { method: 'POST', body: JSON.stringify(data) }); },
+  async updateAttributeGroup(config: SystemConfig, id: string, data: any) { return safeFetch(`${getBaseUrl(config)}/mdm_attribute_groups/${encodeURIComponent(id)}`, config, { method: 'PUT', body: JSON.stringify(data) }); },
+  async deleteAttributeGroup(config: SystemConfig, id: string) { return safeFetch(`${getBaseUrl(config)}/mdm_attribute_groups/${encodeURIComponent(id)}`, config, { method: 'DELETE' }); },
 
-  // Roles & Permissions
-  async getRoles(config: SystemConfig) { 
-    return safeFetch(`${getBaseUrl(config)}/mdm_roles`, config); 
-  },
-  async createRole(config: SystemConfig, data: any) { 
-    return safeFetch(`${getBaseUrl(config)}/mdm_roles`, config, { 
-      method: 'POST', 
-      body: JSON.stringify(data) 
-    }); 
-  },
-  async updateRole(config: SystemConfig, id: string, data: any) { 
-    return safeFetch(`${getBaseUrl(config)}/mdm_roles/${encodeURIComponent(id)}`, config, { 
-      method: 'PUT', 
-      body: JSON.stringify(data) 
-    }); 
-  },
-  async deleteRole(config: SystemConfig, id: string) { 
-    return safeFetch(`${getBaseUrl(config)}/mdm_roles/${encodeURIComponent(id)}`, config, { 
-      method: 'DELETE' 
-    }); 
-  },
+  // Attributes (Table 11)
+  async getAttributes(config: SystemConfig) { return safeFetch(`${getBaseUrl(config)}/mdm_attributes`, config); },
+  async createAttribute(config: SystemConfig, data: any) { return safeFetch(`${getBaseUrl(config)}/mdm_attributes`, config, { method: 'POST', body: JSON.stringify(data) }); },
+  async updateAttribute(config: SystemConfig, id: string, data: any) { return safeFetch(`${getBaseUrl(config)}/mdm_attributes/${encodeURIComponent(id)}`, config, { method: 'PUT', body: JSON.stringify(data) }); },
+  async deleteAttribute(config: SystemConfig, id: string) { return safeFetch(`${getBaseUrl(config)}/mdm_attributes/${encodeURIComponent(id)}`, config, { method: 'DELETE' }); },
 
-  async getCapabilities(config: SystemConfig) { 
-    return safeFetch(`${getBaseUrl(config)}/mdm_capabilities`, config); 
-  },
-  async getPermissions(config: SystemConfig) { 
-    return safeFetch(`${getBaseUrl(config)}/mdm_permissions`, config); 
-  },
-  async updatePermission(config: SystemConfig, id: string, data: any) { 
-    return safeFetch(`${getBaseUrl(config)}/mdm_permissions/${encodeURIComponent(id)}`, config, { 
-      method: 'PUT', 
-      body: JSON.stringify(mapOutgoing(data)) 
-    }); 
-  },
-
-  // Users
-  async getUsers(config: SystemConfig) { 
-    return safeFetch(`${getBaseUrl(config)}/mdm_users`, config); 
-  },
-  async createUser(config: SystemConfig, data: any) { 
-    return safeFetch(`${getBaseUrl(config)}/mdm_users`, config, { 
-      method: 'POST', 
-      body: JSON.stringify(data) 
-    }); 
-  },
-  async updateUser(config: SystemConfig, id: string, data: any) { 
-    return safeFetch(`${getBaseUrl(config)}/mdm_users/${encodeURIComponent(id)}`, config, { 
-      method: 'PUT', 
-      body: JSON.stringify(data) 
-    }); 
-  },
-  async deleteUser(config: SystemConfig, id: string) { 
-    return safeFetch(`${getBaseUrl(config)}/mdm_users/${encodeURIComponent(id)}`, config, { 
-      method: 'DELETE' 
-    }); 
-  },
-
-  // Workflows & Integrations
-  async getWorkflows(config: SystemConfig) { 
-    return safeFetch(`${getBaseUrl(config)}/mdm_workflows`, config); 
-  },
-  async createWorkflow(config: SystemConfig, data: any) { 
-    return safeFetch(`${getBaseUrl(config)}/mdm_workflows`, config, { 
-      method: 'POST', 
-      body: JSON.stringify(data) 
-    }); 
-  },
-  async updateWorkflow(config: SystemConfig, id: string, data: any) { 
-    return safeFetch(`${getBaseUrl(config)}/mdm_workflows/${encodeURIComponent(id)}`, config, { 
-      method: 'PUT', 
-      body: JSON.stringify(data) 
-    }); 
-  },
-  async deleteWorkflow(config: SystemConfig, id: string) { 
-    return safeFetch(`${getBaseUrl(config)}/mdm_workflows/${encodeURIComponent(id)}`, config, { 
-      method: 'DELETE' 
-    }); 
-  },
-  async getIntegrations(config: SystemConfig) { 
-    return safeFetch(`${getBaseUrl(config)}/mdm_integrations`, config); 
-  },
-  async createIntegration(config: SystemConfig, data: any) { 
-    return safeFetch(`${getBaseUrl(config)}/mdm_integrations`, config, { 
-      method: 'POST', 
-      body: JSON.stringify(data) 
-    }); 
-  },
-  async updateIntegration(config: SystemConfig, id: string, data: any) { 
-    return safeFetch(`${getBaseUrl(config)}/mdm_integrations/${encodeURIComponent(id)}`, config, { 
-      method: 'PUT', 
-      body: JSON.stringify(data) 
-    }); 
-  }
+  // Security, Workflows, Users
+  async getRoles(config: SystemConfig) { return safeFetch(`${getBaseUrl(config)}/mdm_roles`, config); },
+  async createRole(config: SystemConfig, data: any) { return safeFetch(`${getBaseUrl(config)}/mdm_roles`, config, { method: 'POST', body: JSON.stringify(data) }); },
+  async updateRole(config: SystemConfig, id: string, data: any) { return safeFetch(`${getBaseUrl(config)}/mdm_roles/${encodeURIComponent(id)}`, config, { method: 'PUT', body: JSON.stringify(data) }); },
+  async deleteRole(config: SystemConfig, id: string) { return safeFetch(`${getBaseUrl(config)}/mdm_roles/${encodeURIComponent(id)}`, config, { method: 'DELETE' }); },
+  async getCapabilities(config: SystemConfig) { return safeFetch(`${getBaseUrl(config)}/mdm_capabilities`, config); },
+  async createCapability(config: SystemConfig, data: any) { return safeFetch(`${getBaseUrl(config)}/mdm_capabilities`, config, { method: 'POST', body: JSON.stringify(data) }); },
+  async deleteCapability(config: SystemConfig, id: string) { return safeFetch(`${getBaseUrl(config)}/mdm_capabilities/${encodeURIComponent(id)}`, config, { method: 'DELETE' }); },
+  async getPermissions(config: SystemConfig) { return safeFetch(`${getBaseUrl(config)}/mdm_permissions`, config); },
+  async createPermission(config: SystemConfig, data: any) { return safeFetch(`${getBaseUrl(config)}/mdm_permissions`, config, { method: 'POST', body: JSON.stringify(data) }); },
+  async deletePermission(config: SystemConfig, id: string) { return safeFetch(`${getBaseUrl(config)}/mdm_permissions/${encodeURIComponent(id)}`, config, { method: 'DELETE' }); },
+  async getWorkflows(config: SystemConfig) { return safeFetch(`${getBaseUrl(config)}/mdm_workflows`, config); },
+  async createWorkflow(config: SystemConfig, data: any) { return safeFetch(`${getBaseUrl(config)}/mdm_workflows`, config, { method: 'POST', body: JSON.stringify(data) }); },
+  async updateWorkflow(config: SystemConfig, id: string, data: any) { return safeFetch(`${getBaseUrl(config)}/mdm_workflows/${encodeURIComponent(id)}`, config, { method: 'PUT', body: JSON.stringify(data) }); },
+  async deleteWorkflow(config: SystemConfig, id: string) { return safeFetch(`${getBaseUrl(config)}/mdm_workflows/${encodeURIComponent(id)}`, config, { method: 'DELETE' }); },
+  async getIntegrations(config: SystemConfig) { return safeFetch(`${getBaseUrl(config)}/mdm_integrations`, config); },
+  async createIntegration(config: SystemConfig, data: any) { return safeFetch(`${getBaseUrl(config)}/mdm_integrations`, config, { method: 'POST', body: JSON.stringify(data) }); },
+  async updateIntegration(config: SystemConfig, id: string, data: any) { return safeFetch(`${getBaseUrl(config)}/mdm_integrations/${encodeURIComponent(id)}`, config, { method: 'PUT', body: JSON.stringify(data) }); },
+  async deleteIntegration(config: SystemConfig, id: string) { return safeFetch(`${getBaseUrl(config)}/mdm_integrations/${encodeURIComponent(id)}`, config, { method: 'DELETE' }); },
+  async getUsers(config: SystemConfig) { return safeFetch(`${getBaseUrl(config)}/mdm_users`, config); }
 };
