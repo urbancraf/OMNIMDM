@@ -70,7 +70,7 @@ const mapIncoming = (data: any): any => {
     const p = mapped.parent_id;
     mapped.parentId = (p === null || p === undefined || p === "null" || p === "undefined" || String(p).trim() === "") ? null : String(p);
   }
-  console.log("Mapped Data:", mapped);
+//  console.log("Mapped Data:", mapped);
   return mapped;
 };
 
