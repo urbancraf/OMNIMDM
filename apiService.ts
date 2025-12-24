@@ -26,6 +26,10 @@ const mapOutgoing = (data: any) => {
     // FIX: Ensure parent_id is explicitly sent as null if it's missing or nullish
     mapped.parent_id = (p === null || p === undefined || p === "null" || p === "" || p === "undefined") ? null : p;
     delete mapped.parentId;
+
+  if (!mapped.type) {
+	mapped.type = 'Primary'; 
+  }
     
     // DEBUG LOG
     console.log('🔄 mapOutgoing parent_id:', {
