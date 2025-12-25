@@ -59,7 +59,8 @@ const mapIncoming = (data: any): any => {
     console.log('┌─────────────────────────────────Data Type is array --');  
     return data.map(mapIncoming);
   }
-  
+
+  console.log('┌─────────────────────────────────Data Type is array --',data);  
   const mapped = { ...data };
   
   if ('updated_at' in mapped) mapped.updatedAt = mapped.updated_at;
@@ -79,7 +80,7 @@ const mapIncoming = (data: any): any => {
     mapped.parentId = (p === null || p === "null" || p === "undefined" || p === "") ? null : p;
   }
 */
-    console.log('┌─────────────────────────────────before --');
+    console.log('┌─────────────────────────────────before1 --');
     console.log('┌─────────────────────────────────before --mapped.group_id-', mapped.group_id);
 	console.log('┌─────────────────────────────────before --mapped.parent_id-', mapped.parent_id);
 if ('parent_id' in mapped) {
