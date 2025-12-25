@@ -62,13 +62,12 @@ const mapIncoming = (data: any): any => {
 
   console.log('─────────────────────────────────Data --'); 
   console.log(data);
-  console.log('─────────────────────────────────Data --');   
-  console.table(data);
-  console.log('─────────────────────────────────Data --');   
-  console.dir(data);
-  console.log('─────────────────────────────────Data --');     
+  console.log('─────────────────────────────────Data --');      
   
   const mapped = { ...data };
+  console.log('─────────────────────────────────mapped --'); 
+  console.log(mapped);
+  console.log('─────────────────────────────────mapped --');  
   
   if ('updated_at' in mapped) mapped.updatedAt = mapped.updated_at;
   if ('created_at' in mapped) mapped.createdAt = mapped.created_at;
