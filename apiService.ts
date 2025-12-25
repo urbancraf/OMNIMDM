@@ -73,7 +73,9 @@ const mapIncoming = (data: any): any => {
     mapped.parentId = (p === null || p === "null" || p === "undefined" || p === "") ? null : p;
   }
 */
-    console.log('┌─────────────────────────────────before ---');
+    console.log('┌─────────────────────────────────before --');
+    console.log('┌─────────────────────────────────before --mapped.group_id-', mapped.group_id);
+	console.log('┌─────────────────────────────────before --mapped.parent_id-', mapped.parent_id);
 if ('parent_id' in mapped) {
     const p = mapped.parent_id;
     const parentIdValue = (p === null || p === "null" || p === "undefined" || p === "") ? null : p;
