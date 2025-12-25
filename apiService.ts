@@ -84,8 +84,7 @@ const mapIncoming = (data: any): any => {
   // ============================================================================
 
   const mapped = { ...data };
- 
-  
+
   if ('updated_at' in mapped) mapped.updatedAt = mapped.updated_at;
   if ('created_at' in mapped) mapped.createdAt = mapped.created_at;
   
@@ -102,13 +101,14 @@ const mapIncoming = (data: any): any => {
     const p = mapped.parent_id;
     mapped.parentId = (p === null || p === "null" || p === "undefined" || p === "") ? null : p;
   }
-*/
 
+*/	
 if ('parent_id' in mapped) {
     const p = mapped.parent_id;
     const parentIdValue = (p === null || p === "null" || p === "undefined" || p === "") ? null : p;
     mapped.parentId = parentIdValue;
-	
+}
+
   if ('group_id' in mapped) {
     mapped.groupId = mapped.group_id;
   }
