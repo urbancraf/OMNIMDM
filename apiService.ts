@@ -52,18 +52,36 @@ const mapOutgoing = (data: any) => {
 
 const mapIncoming = (data: any): any => {
   if (!data || typeof data !== 'object') {
-    console.log('┌─────────────────────────────────Data Type is object --');
     return data;
   }
   else if (Array.isArray(data)) {
-    console.log('┌─────────────────────────────────Data Type is array --');  
     return data.map(mapIncoming);
   }
 
-  console.log('─────────────────────────────────Data --'); 
-  console.log(data);
-  console.log('─────────────────────────────────Data --');      
-  
+  // ============================================================================
+  // 🔧 FIX APPLIED - 2025-12-25 - BEFORE FIX
+  // Issue: parent_id field was not being transformed to parentId
+  // Root Cause: API returns wrapper objects { count: 3, data: [...] }
+  // The mapIncoming was trying to find parent_id in the wrapper object,
+  // not in the individual items within the data array
+  // ============================================================================
+
+  // ============================================================================
+  // ✨ NEW CODE ADDED - 2025-12-25 - AFTER FIX
+  // Solution: Check if data.data exists and is an array
+  // If yes, recursively call mapIncoming on each item
+  // This ensures each item in the array gets the parent_id → parentId transformation
+  // ============================================================================
+  if (data.data && Array.isArray(data.data)) {
+    return {
+      ...data,
+      data: data.data.map(mapIncoming)
+    };
+  }
+  // ============================================================================
+  // END OF NEW CODE - 2025-12-25
+  // ============================================================================
+
   const mapped = { ...data };
   console.log('─────────────────────────────────mapped --'); 
   console.log(mapped);
