@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { 
   ChevronRight, 
@@ -29,8 +28,8 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { Product, Category, SystemConfig } from '../types';
-import { api } from '../apiService';
+import { Product, Category, SystemConfig } from './types.ts';
+import { api } from './apiService.ts';
 
 interface CategoryManagerProps {
   systemConfig: SystemConfig;
@@ -73,8 +72,10 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({
   const [editName, setEditName] = useState('');
   const [editDesc, setEditDesc] = useState('');
 
-  // Partition the categories based on the logical "type" discriminator.
-  // If 'type' is missing, we treat it as 'Primary' for backward compatibility.
+  /**
+   * CHANGE: Select categories based on current activeRoot tab.
+   * Logic remains similar, but the source data is already pre-filtered in App.tsx.
+   */
   const currentCategories = activeRoot === 'Primary' ? primaryCategories : secondaryCategories;
   const currentDepthLimit = activeRoot === 'Primary' ? MAX_DEPTH_PRIMARY : MAX_DEPTH_SECONDARY;
 
@@ -100,8 +101,10 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({
   const displayedCategories = useMemo(() => {
     const isRootTarget = !parentId;
     
+    /**
+     * CHANGE: Ensure categories shown only match the active root and parent.
+     */
     let list = currentCategories.filter(c => {
-      // FIX: Filter categories to only those belonging to the active taxonomy tree
       const catType = (c as any).type || 'Primary';
       if (catType !== activeRoot) return false;
 
@@ -123,7 +126,6 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({
     const cat = currentCategories.find(c => c.id === selectedCategoryId);
     if (!cat) return null;
 
-    // FIX: Verify selected category matches the active tab's root type
     const catType = (cat as any).type || 'Primary';
     if (catType !== activeRoot) return null;
 
@@ -171,7 +173,10 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({
       return;
     }
 
-    // FIX: Assign 'type' property to ensure the new category is saved in the correct taxonomy tree.
+    /**
+     * CHANGE: Explicitly assign the 'type' property based on activeRoot.
+     * This ensures the category is correctly routed to Primary or Secondary groups.
+     */
     const newCat: any = {
       id: crypto.randomUUID(),
       name: name.trim(),
@@ -185,7 +190,7 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({
       onRefresh();
       setIsAddModalOpen(false);
     } catch (err) {
-      alert("Failed to persist category to database. Verify connection or table schema.");
+      alert("Failed to persist category to database.");
     }
   };
 
@@ -193,7 +198,6 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({
     if (!selectedCategory) return;
     const oldName = selectedCategory.name;
     
-    // FIX: Preserve the 'type' discriminator during updates.
     const updatedPayload: any = {
       id: selectedCategory.id,
       name: editName,
@@ -208,7 +212,7 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({
       onRefresh();
       setIsEditing(false);
     } catch (err) {
-      alert("Persistence Failure: Failed to update node identity.");
+      alert("Persistence Failure.");
     }
   };
 
@@ -220,7 +224,7 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({
       setSelectedCategoryId(null);
       setIsDeleteModalOpen(false);
     } catch (err) {
-      alert("Delete restricted: Identity in use or connection lost.");
+      alert("Delete restricted.");
     }
   };
 
