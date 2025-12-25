@@ -51,8 +51,14 @@ const mapOutgoing = (data: any) => {
 };
 
 const mapIncoming = (data: any): any => {
-  if (!data || typeof data !== 'object') return data;
-  if (Array.isArray(data)) return data.map(mapIncoming);
+  if (!data || typeof data !== 'object') {
+    console.log('┌─────────────────────────────────Data Type is object --');
+    return data;
+  }
+  else if (Array.isArray(data)) {
+    console.log('┌─────────────────────────────────Data Type is array --');  
+    return data.map(mapIncoming);
+  }
   
   const mapped = { ...data };
   
