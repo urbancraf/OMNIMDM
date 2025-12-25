@@ -67,12 +67,38 @@ const mapIncoming = (data: any): any => {
     mapped.shortDescription = parts[0] || '';
     mapped.longDescription = parts.slice(1).join('\n\n') || '';
   }
-
+/*
   if ('parent_id' in mapped) {
     const p = mapped.parent_id;
     mapped.parentId = (p === null || p === "null" || p === "undefined" || p === "") ? null : p;
   }
+*/
+    console.log('┌─────────────────────────────────before ---');
+if ('parent_id' in mapped) {
+    const p = mapped.parent_id;
+    const parentIdValue = (p === null || p === "null" || p === "undefined" || p === "") ? null : p;
+    mapped.parentId = parentIdValue;
+  
+    console.log(
+        '%c🔍 FIELD MAPPING DEBUG',
+        'background: #4a5568; color: white; padding: 2px 6px; border-radius: 3px; font-weight: bold;'
+    );
+    console.log('┌─────────────────────────────────');
+    console.log(`│ Field: parent_id → parentId`);
+    console.log(`│ Original value:`, p);
+    console.log(`│ Original type:`, typeof p);
+    console.log(`│ Mapped value:`, parentIdValue);
+    console.log(`│ Mapped type:`, typeof parentIdValue);
+    console.log(`│ Transformation logic:`);
+    console.log(`│   ${p} === null:`, p === null);
+    console.log(`│   ${p} === "null":`, p === "null");
+    console.log(`│   ${p} === "undefined":`, p === "undefined");
+    console.log(`│   ${p} === "":`, p === "");
+    console.log(`│   Result:`, parentIdValue);
+    console.log('└─────────────────────────────────');
+}
 
+    console.log('┌─────────────────────────────────after ---');
   if ('group_id' in mapped) {
     mapped.groupId = mapped.group_id;
   }
