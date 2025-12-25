@@ -67,13 +67,13 @@ const mapIncoming = (data: any): any => {
     mapped.shortDescription = parts[0] || '';
     mapped.longDescription = parts.slice(1).join('\n\n') || '';
   }
-/*   commented - backuo
+//   commented - backuo
   if ('parent_id' in mapped) {
     const p = mapped.parent_id;
     mapped.parentId = (p === null || p === "null" || p === "undefined" || p === "") ? null : p;
   }
-   commented - backuo
-*/
+//   commented - backuo
+/*
     console.log(
       '%c🔍 FIELD MAPPING DEBUG',
       'background: #4a5568; color: white; padding: 2px 6px; border-radius: 3px; font-weight: bold;'
@@ -107,7 +107,7 @@ const mapIncoming = (data: any): any => {
   console.log('┌─────────────────────────────────');
   console/log('After  the loop');
   console.log('┌─────────────────────────────────');
-  
+*/  
   if ('group_id' in mapped) {
     mapped.groupId = mapped.group_id;
   }
