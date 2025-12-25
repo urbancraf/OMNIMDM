@@ -60,7 +60,14 @@ const mapIncoming = (data: any): any => {
     return data.map(mapIncoming);
   }
 
-  console.log('┌─────────────────────────────────Data Type is array --',data);  
+  console.log('─────────────────────────────────Data --'); 
+  console.log(data);
+  console.log('─────────────────────────────────Data --');   
+  console.table(data);
+  console.log('─────────────────────────────────Data --');   
+  console.dir(data);
+  console.log('─────────────────────────────────Data --');     
+  
   const mapped = { ...data };
   
   if ('updated_at' in mapped) mapped.updatedAt = mapped.updated_at;
