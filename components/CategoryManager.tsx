@@ -185,6 +185,9 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({
       type: activeRoot 
     };
 
+// 🔍 DEBUG LOG1: Check if UI is creating the object with the correct type
+    console.log("[CategoryManager] Creating new category:", newCat);
+
     try {
       await api.createCategory(systemConfig, newCat);
       onRefresh();
@@ -205,7 +208,10 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({
       parentId: selectedCategory.parentId,
       type: (selectedCategory as any).type || 'Primary'
     };
-    
+
+// 🔍 DEBUG LOG2: Check if update payload preserves the type
+    console.log("[CategoryManager] Updating category:", updatedPayload);
+
     try {
       await api.updateCategory(systemConfig, selectedCategory.id, updatedPayload);
       if (oldName !== editName) onCategoryRename(oldName, editName, activeRoot);
