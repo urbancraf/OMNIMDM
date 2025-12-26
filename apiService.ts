@@ -35,12 +35,21 @@ const mapOutgoing = (data: any) => {
     mapped.group_id = mapped.groupId || null;
     delete mapped.groupId;
   }
-
+/*
 // changes for secondary hierachy starts
   if ('type' in mapped) {
     mapped.type = mapped.type; 
   }
 // changes for secondary hierachy ends
+*/
+
+/**
+   * CHANGE: Added explicit preservation of 'type' field [2024-05-22 14:15]
+   * Ensures 'Primary' or 'Secondary' strings are sent to the database.
+   */
+  if ('type' in mapped) {
+    mapped.type = mapped.type || 'Primary'; 
+  }
 
 // Common Timestamps
   if ('updatedAt' in mapped) { mapped.updated_at = mapped.updatedAt; delete mapped.updatedAt; }
@@ -123,11 +132,17 @@ if ('parent_id' in mapped) {
     mapped.parentId = parentIdValue;
   	
 }
-
-
 	
   if ('group_id' in mapped) {
     mapped.groupId = mapped.group_id;
+  }
+  
+/**
+   * CHANGE: Capture 'type' from API response [2024-05-22 14:17]
+   * Defaults to 'Primary' if the field is null in DB.
+   */
+  if ('type' in mapped) {
+    mapped.type = mapped.type || 'Primary';
   }
 
   if ('permission_key' in mapped) mapped.code = mapped.permission_key;

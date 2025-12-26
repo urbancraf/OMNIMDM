@@ -176,7 +176,7 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({
     /**
      * CHANGE: Explicitly assign the 'type' property based on activeRoot.
      * This ensures the category is correctly routed to Primary or Secondary groups.
-     */
+     *
     const newCat: any = {
       id: crypto.randomUUID(),
       name: name.trim(),
@@ -184,7 +184,14 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({
       parentId: parentId || null,
       type: activeRoot 
     };
-
+*/
+	const newCat: any = {
+      name: name.trim(),
+      description: desc.trim() || `Sub-category in ${activeRoot}`,
+      parentId: parentId || null,
+      type: activeRoot 
+    };
+	
 // 🔍 DEBUG LOG1: Check if UI is creating the object with the correct type
     console.log("[CategoryManager] Creating new category:", newCat);
 
