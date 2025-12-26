@@ -33,7 +33,13 @@ const mapOutgoing = (data: any) => {
     delete mapped.groupId;
   }
 
-  // Common Timestamps
+// changes for secondary hierachy starts
+  if ('type' in mapped) {
+    mapped.type = mapped.type; 
+  }
+// changes for secondary hierachy ends
+
+// Common Timestamps
   if ('updatedAt' in mapped) { mapped.updated_at = mapped.updatedAt; delete mapped.updatedAt; }
   if ('createdAt' in mapped) { mapped.created_at = mapped.createdAt; delete mapped.createdAt; }
 
