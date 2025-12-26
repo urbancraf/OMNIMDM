@@ -47,7 +47,9 @@ const mapOutgoing = (data: any) => {
    * CHANGE: Added explicit preservation of 'type' field [2024-05-22 14:15]
    * Ensures 'Primary' or 'Secondary' strings are sent to the database.
    */
+    console.log("Before type in mapped;");   
   if ('type' in mapped) {
+    console.log("type in mapped;");
     mapped.type = mapped.type || 'Primary'; 
   }
 
