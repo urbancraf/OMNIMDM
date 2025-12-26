@@ -54,6 +54,11 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({
   onRefresh
 }) => {
   const [activeRoot, setActiveRoot] = useState<'Primary' | 'Secondary'>('Primary');
+// 🔍 DEBUG LOG: Monitor Tab Switching
+  useEffect(() => {
+    console.log(`[UI] Current Active Tab: ${activeRoot} | Date: ${new Date().toLocaleString()}`);
+  }, [activeRoot]); 
+ 
   const [currentPath, setCurrentPath] = useState<string[]>([]); // Array of category IDs
   const [searchTerm, setSearchTerm] = useState('');
   const [inspectorTab, setInspectorTab] = useState<'details' | 'structure'>('details');
@@ -191,6 +196,13 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({
       parentId: parentId || null,
       type: activeRoot 
     };
+	
+// 🔍 DEBUG LOG: Capture UI state before API call
+    console.log("[UI] Creating Category with Type:", {
+      assignedType: newCat.type,
+      currentTab: activeRoot,
+      timestamp: new Date().toLocaleString()
+    });	
 	
 // 🔍 DEBUG LOG1: Check if UI is creating the object with the correct type
     console.log("[CategoryManager] Creating new category:", newCat);

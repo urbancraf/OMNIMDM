@@ -8,6 +8,13 @@ const mapOutgoing = (data: any) => {
   if (!data || typeof data !== 'object' || Array.isArray(data)) return data;
   // 🔍 DEBUG LOG1: See data before it enters the mapping logic
   console.log("[apiService] mapOutgoing INPUT:", data);
+// 🔍 DEBUG LOG: Check if 'type' exists in the raw data from UI
+  console.log("[Service] mapOutgoing Received Data:", {
+    hasType: 'type' in data,
+    typeValue: data.type,
+    fullData: data,
+    timestamp: new Date().toLocaleString()
+  });  
   
   const mapped = { ...data };
   
@@ -52,7 +59,10 @@ const mapOutgoing = (data: any) => {
     console.log("type in mapped;");
     mapped.type = mapped.type || 'Primary'; 
   }
-
+  console.log("[Service] mapOutgoing Final Payload:", {
+    finalType: mapped.type,
+    timestamp: new Date().toLocaleString()
+  });
 // Common Timestamps
   if ('updatedAt' in mapped) { mapped.updated_at = mapped.updatedAt; delete mapped.updatedAt; }
   if ('createdAt' in mapped) { mapped.created_at = mapped.createdAt; delete mapped.createdAt; }
