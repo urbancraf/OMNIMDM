@@ -127,14 +127,11 @@ const App: React.FC = () => {
       /**
        * CHANGE: Filter the unified category list by 'type' property.
        * Default to 'Primary' if type is missing for backward compatibility.
-       */
-      if (pcRes.status === 'fulfilled') {
+       */ changes for secondary hierarchy changes
+	if (pcRes.status === 'fulfilled') {
         const allCats = Array.isArray(pcRes.value) ? pcRes.value : (pcRes.value?.data || []);
-/*		Changes for issue in secondary hierarchy - change starts
-        setPrimaryCategories(allCats.filter((c: any) => (c.type || 'Primary') === 'Primary'));
-        setSecondaryCategories(allCats.filter((c: any) => (c.type === 'Secondary')));
-*/
-		setPrimaryCategories(allCats.filter((c: any) => {
+        
+        setPrimaryCategories(allCats.filter((c: any) => {
           const type = (c.type || 'Primary').toLowerCase();
           return type === 'primary';
         }));
@@ -143,7 +140,7 @@ const App: React.FC = () => {
           const type = (c.type || '').toLowerCase();
           return type === 'secondary';
         }));
-      }
+    }
 // change ends
       process(aRes, setMasterAttributes);
       process(gRes, setAttributeGroups);
