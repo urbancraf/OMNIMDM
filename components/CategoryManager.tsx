@@ -196,6 +196,7 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({
       parentId: parentId || null,
       type: activeRoot 
     };
+
 	
 // 🔍 DEBUG LOG: Capture UI state before API call
     console.log("[UI] Creating Category with Type:", {
