@@ -255,46 +255,42 @@ export const api = {
 */  
 // ✅ CHANGE (27 Dec 2025, 06:25 IST)
 // Ensure full payload (including `type`) is forwarded without mutation
-const createCategory = async (config: SystemConfig, payload: any) => {
+// ✅ CHANGE (27 Dec 2025, 06:25 IST)
+// Ensure full payload (including `type`) is forwarded without mutation
+async createCategory(config: SystemConfig, payload: any) {
   console.log("[API][createCategory] Outgoing Payload:", {
     ...payload,
     timestampIST: new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })
   });
 
-  return axios.post(
-    `${config.dbHost}/categories`,
-    payload,
+  return safeFetch(
+    `${getBaseUrl(config)}/mdm_categories`,
+    config,
     {
-      auth: {
-        username: config.dbUser,
-        password: config.dbPass
-      }
+      method: 'POST',
+      body: JSON.stringify(payload)
     }
   );
-},  
+}, 
   
-//  async updateCategory(config: SystemConfig, id: string, data: any) { return safeFetch(`${getBaseUrl(config)}/mdm_categories/${encodeURIComponent(id)}`, config, { method: 'PUT', body: JSON.stringify(data) }); },
 // ✅ CHANGE (27 Dec 2025, 06:25 IST)
 // Preserve category `type` during updates
-const updateCategory = async (config: SystemConfig, id: string, payload: any) => {
+async updateCategory(config: SystemConfig, id: string, payload: any) {
   console.log("[API][updateCategory] Outgoing Payload:", {
     id,
     type: payload.type,
     timestampIST: new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })
   });
 
-  return axios.put(
-    `${config.dbHost}/categories/${id}`,
-    payload,
+  return safeFetch(
+    `${getBaseUrl(config)}/mdm_categories/${encodeURIComponent(id)}`,
+    config,
     {
-      auth: {
-        username: config.dbUser,
-        password: config.dbPass
-      }
+      method: 'PUT',
+      body: JSON.stringify(payload)
     }
   );
 },
-
 
   async deleteCategory(config: SystemConfig, id: string) { return safeFetch(`${getBaseUrl(config)}/mdm_categories/${encodeURIComponent(id)}`, config, { method: 'DELETE' }); },
 
