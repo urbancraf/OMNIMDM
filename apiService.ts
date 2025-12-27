@@ -58,7 +58,12 @@ const mapOutgoing = (data: any) => {
   if ('type' in mapped && mapped.type != null) {
     console.log("type in mapped;");
     mapped.type = String(mapped.type);
-  }  
+  }
+  else{
+      mapped.type = 'secondary';
+  }
+  
+  
   console.log("[Service] mapOutgoing Final Payload:", {
     finalType: mapped.type,
     timestamp: new Date().toLocaleString()
