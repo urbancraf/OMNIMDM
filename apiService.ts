@@ -250,7 +250,8 @@ export const api = {
    */
   async getCategories(config: SystemConfig) { return safeFetch(`${getBaseUrl(config)}/mdm_categories`, config); },
 /*
-  async createCategory(config: SystemConfig, data: any) { return safeFetch(`${getBaseUrl(config)}/mdm_categories`, config, { method: 'POST', body: JSON.stringify(data) }); },
+  async createCategory(config: SystemConfig, data: any) 
+  { return safeFetch(`${getBaseUrl(config)}/mdm_categories`, config, { method: 'POST', body: JSON.stringify(data) }); },
 */  
 // ✅ CHANGE (27 Dec 2025, 06:25 IST)
 // Ensure full payload (including `type`) is forwarded without mutation
@@ -270,7 +271,7 @@ const createCategory = async (config: SystemConfig, payload: any) => {
       }
     }
   );
-};  
+},  
   
 //  async updateCategory(config: SystemConfig, id: string, data: any) { return safeFetch(`${getBaseUrl(config)}/mdm_categories/${encodeURIComponent(id)}`, config, { method: 'PUT', body: JSON.stringify(data) }); },
 // ✅ CHANGE (27 Dec 2025, 06:25 IST)
@@ -292,7 +293,7 @@ const updateCategory = async (config: SystemConfig, id: string, payload: any) =>
       }
     }
   );
-};
+},
 
 
   async deleteCategory(config: SystemConfig, id: string) { return safeFetch(`${getBaseUrl(config)}/mdm_categories/${encodeURIComponent(id)}`, config, { method: 'DELETE' }); },
