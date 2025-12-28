@@ -83,11 +83,7 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({
    */
   const currentCategories = activeRoot === 'Primary' ? primaryCategories : secondaryCategories;
   const currentDepthLimit = activeRoot === 'Primary' ? MAX_DEPTH_PRIMARY : MAX_DEPTH_SECONDARY;
-  
-//  console.log(`[UI] Current Active Tab2 activeroot       : ${activeRoot} | Date: ${new Date().toLocaleString()}`);
-//  console.log(`[UI] Current Active Tab3 CurrCategories   : ${currentCategories} | Date: ${new Date().toLocaleString()}`);
-//  console.log(`[UI] Current Active Tab4 currentDepthLimit: ${currentDepthLimit} | Date: ${new Date().toLocaleString()}`);
-
+// Hello  
   const breadcrumbs = useMemo(() => {
     return currentPath.map(id => currentCategories.find(c => c.id === id)).filter(Boolean) as Category[];
   }, [currentPath, currentCategories]);
