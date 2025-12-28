@@ -56,7 +56,7 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({
   const [activeRoot, setActiveRoot] = useState<'Primary' | 'Secondary'>('Primary');
 // 🔍 DEBUG LOG: Monitor Tab Switching
   useEffect(() => {
-    console.log(`[UI] Current Active Tab: ${activeRoot} | Date: ${new Date().toLocaleString()}`);
+    console.log(`[UI] Current Active Tab1: ${activeRoot} | Date: ${new Date().toLocaleString()}`);
   }, [activeRoot]); 
  
   const [currentPath, setCurrentPath] = useState<string[]>([]); // Array of category IDs
@@ -83,6 +83,10 @@ const CategoryManager: React.FC<CategoryManagerProps> = ({
    */
   const currentCategories = activeRoot === 'Primary' ? primaryCategories : secondaryCategories;
   const currentDepthLimit = activeRoot === 'Primary' ? MAX_DEPTH_PRIMARY : MAX_DEPTH_SECONDARY;
+  
+  console.log(`[UI] Current Active Tab2 activeroot       : ${activeRoot} | Date: ${new Date().toLocaleString()}`);
+  console.log(`[UI] Current Active Tab3 CurrCategories   : ${currentCategories} | Date: ${new Date().toLocaleString()}`);
+  console.log(`[UI] Current Active Tab4 currentDepthLimit: ${currentDepthLimit} | Date: ${new Date().toLocaleString()}`);
 
   const breadcrumbs = useMemo(() => {
     return currentPath.map(id => currentCategories.find(c => c.id === id)).filter(Boolean) as Category[];
