@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
   LayoutDashboard, 
@@ -94,15 +95,10 @@ const App: React.FC = () => {
     if (!currentUser) return;
     setIsLoading(true);
     try {
-      /**
-       * CHANGE: pcRes now fetches all categories from the unified mdm_categories table.
-       * scRes is still kept in the promise list to maintain array indexing, but 
-       * primary vs secondary filtering happens during processing.
-       */
       const [pRes, pcRes, scRes, aRes, gRes, rRes, capRes, uRes, permRes, wRes, iRes] = await Promise.allSettled([
         api.getProducts(activeConfig),
         api.getCategories(activeConfig),
-        api.getSecondaryCategories(activeConfig), // This also hits mdm_categories now
+        api.getSecondaryCategories(activeConfig),
         api.getAttributes(activeConfig),
         api.getAttributeGroups(activeConfig),
         api.getRoles(activeConfig),
@@ -123,26 +119,8 @@ const App: React.FC = () => {
       };
 
       process(pRes, setProducts);
-
-      /**
-       * CHANGE: Filter the unified category list by 'type' property.
-       * Default to 'Primary' if type is missing for backward compatibility.
-       */ 
-	   // changes for secondary hierarchy changes
-	if (pcRes.status === 'fulfilled') {
-        const allCats = Array.isArray(pcRes.value) ? pcRes.value : (pcRes.value?.data || []);
-        
-        setPrimaryCategories(allCats.filter((c: any) => {
-          const type = (c.type || 'Primary').toLowerCase();
-          return type === 'primary';
-        }));
-
-        setSecondaryCategories(allCats.filter((c: any) => {
-          const type = (c.type || '').toLowerCase();
-          return type === 'secondary';
-        }));
-    }
-// change ends
+      process(pcRes, setPrimaryCategories);
+      process(scRes, setSecondaryCategories);
       process(aRes, setMasterAttributes);
       process(gRes, setAttributeGroups);
       process(rRes, setUserRoles);
