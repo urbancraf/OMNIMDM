@@ -131,6 +131,7 @@ const App: React.FC = () => {
       process(permRes, setGlobalPermissions);
     } catch (err: any) {
       console.error("Data sync error:", err);
+	  console.log('App.tsx - Data Sync Error');
     } finally {
       setIsLoading(false);
     }
