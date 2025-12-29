@@ -1,12 +1,31 @@
-
 import { SystemConfig, User } from './types.ts';
 
 // Cache for the infrastructure token
 let cachedToken: string | null = localStorage.getItem('omnipim_infra_token');
 let refreshPromise: Promise<string | null> | null = null;
 
+/**
+ * 2025-12-29 06:55:00
+ * Helper to generate timestamped logs for easier tracking in Chrome Console
+ */
+const debugLog = (label: string, data: any, isError = false) => {
+    const timestamp = "2025-12-29 06:55:00";
+    const status = isError ? "❌ ERROR" : "🔍 DEBUG";
+    console.log(`[${timestamp}] ${status} [${label}]:`, data);
+};
+
 const mapOutgoing = (data: any) => {
   if (!data || typeof data !== 'object' || Array.isArray(data)) return data;
+  // 🔍 DEBUG LOG1: See data before it enters the mapping logic
+  console.log("[apiService] mapOutgoing INPUT:", data);
+// 🔍 DEBUG LOG: Check if 'type' exists in the raw data from UI
+  console.log("[Service] mapOutgoing Received Data:", {
+    hasType: 'type' in data,
+    typeValue: data.type,
+    fullData: data,
+    timestamp: new Date().toLocaleString()
+  });  
+  
   const mapped = { ...data };
   
   if ('code' in mapped) { mapped.permission_key = mapped.code; delete mapped.code; }
@@ -22,7 +41,6 @@ const mapOutgoing = (data: any) => {
   }
   
   // Hierarchy Mapping: Table 9, 10 & Attribute Groups
-  // Crucial: Ensure parent_id is explicitly sent as null if it's missing or nullish
   if ('parentId' in mapped) { 
     const p = mapped.parentId;
     mapped.parent_id = (p === null || p === undefined || p === "null" || p === "" || p === "undefined") ? null : p; 
@@ -34,8 +52,33 @@ const mapOutgoing = (data: any) => {
     mapped.group_id = mapped.groupId || null;
     delete mapped.groupId;
   }
+/*
+// changes for secondary hierachy starts
+  if ('type' in mapped) {
+    mapped.type = mapped.type; 
+  }
+// changes for secondary hierachy ends
+*/
 
-  // Common Timestamps
+/**
+   * CHANGE: Added explicit preservation of 'type' field [2024-05-22 14:15]
+   * Ensures 'Primary' or 'Secondary' strings are sent to the database.
+   */
+  console.log("Before type in mapped;");   
+  if ('type' in mapped && mapped.type != null) {
+    console.log("type in mapped;");
+    mapped.type = String(mapped.type);
+  }
+  else{
+      mapped.type = 'secondary';
+  }
+  
+  
+  console.log("[Service] mapOutgoing Final Payload:", {
+    finalType: mapped.type,
+    timestamp: new Date().toLocaleString()
+  });
+// Common Timestamps
   if ('updatedAt' in mapped) { mapped.updated_at = mapped.updatedAt; delete mapped.updatedAt; }
   if ('createdAt' in mapped) { mapped.created_at = mapped.createdAt; delete mapped.createdAt; }
 
@@ -48,15 +91,47 @@ const mapOutgoing = (data: any) => {
   if ('config' in mapped && typeof mapped.config === 'object') {
     mapped.config = JSON.stringify(mapped.config);
   }
+  // 🔍 DEBUG LOG2: See data after all transformations
+  console.log("[apiService] mapOutgoing OUTPUT:", mapped);
 
   return mapped;
 };
 
 const mapIncoming = (data: any): any => {
-  if (!data || typeof data !== 'object') return data;
-  if (Array.isArray(data)) return data.map(mapIncoming);
-  
+  if (!data || typeof data !== 'object') {
+    return data;
+  }
+  else if (Array.isArray(data)) {
+    return data.map(mapIncoming);
+  }
+
+  // ============================================================================
+  // 🔧 FIX APPLIED - 2025-12-25 - BEFORE FIX
+  // Issue: parent_id field was not being transformed to parentId
+  // Root Cause: API returns wrapper objects { count: 3, data: [...] }
+  // The mapIncoming was trying to find parent_id in the wrapper object,
+  // not in the individual items within the data array
+  // ============================================================================
+
+  // ============================================================================
+  // ✨ NEW CODE ADDED - 2025-12-25 - AFTER FIX
+  // Solution: Check if data.data exists and is an array
+  // If yes, recursively call mapIncoming on each item
+  // This ensures each item in the array gets the parent_id → parentId transformation
+  // ============================================================================
+  console.log('─────────────────────────────────mapped 123--'); 
+  if (data.data && Array.isArray(data.data)) {
+    return {
+      ...data,
+      data: data.data.map(mapIncoming)
+    };
+  }
+  // ============================================================================
+  // END OF NEW CODE - 2025-12-25
+  // ============================================================================
+
   const mapped = { ...data };
+  
   
   if ('updated_at' in mapped) mapped.updatedAt = mapped.updated_at;
   if ('created_at' in mapped) mapped.createdAt = mapped.created_at;
@@ -69,14 +144,32 @@ const mapIncoming = (data: any): any => {
     mapped.shortDescription = parts[0] || '';
     mapped.longDescription = parts.slice(1).join('\n\n') || '';
   }
-
+/*
   if ('parent_id' in mapped) {
     const p = mapped.parent_id;
     mapped.parentId = (p === null || p === "null" || p === "undefined" || p === "") ? null : p;
   }
+*/
 
+
+	
+if ('parent_id' in mapped) {
+    const p = mapped.parent_id;
+    const parentIdValue = (p === null || p === "null" || p === "undefined" || p === "") ? null : p;
+    mapped.parentId = parentIdValue;
+  	
+}
+	
   if ('group_id' in mapped) {
     mapped.groupId = mapped.group_id;
+  }
+  
+/**
+   * CHANGE: Capture 'type' from API response [2024-05-22 14:17]
+   * Defaults to 'Primary' if the field is null in DB.
+   */
+  if ('type' in mapped) {
+    mapped.type = mapped.type || 'Primary';
   }
 
   if ('permission_key' in mapped) mapped.code = mapped.permission_key;
@@ -96,10 +189,27 @@ const mapIncoming = (data: any): any => {
   return mapped;
 };
 
+/**
+ * 2025-12-29 06:55:00
+ * Logic to ensure the Bearer token is present before any DB call
+ */
+//const ensureToken = async (config: SystemConfig): Promise<string | null> => {
+//  if (cachedToken) return cachedToken;
+//  if (refreshPromise) return refreshPromise;
+
 const ensureToken = async (config: SystemConfig): Promise<string | null> => {
-  if (cachedToken) return cachedToken;
-  if (refreshPromise) return refreshPromise;
-  
+  if (cachedToken) {
+    debugLog("TOKEN", "Found token in cache/localStorage");
+    return cachedToken;
+  }
+
+  if (refreshPromise) {
+    debugLog("TOKEN", "Login already in flight, waiting for promise...");
+    return refreshPromise;
+  }
+
+  debugLog("AUTH_FLOW", `Attempting login for user: ${config.dbUser}`);  
+
   refreshPromise = (async () => {
     try {
       const loginUrl = `${config.dbHost.replace(/\/$/, '')}/login`;
@@ -111,13 +221,24 @@ const ensureToken = async (config: SystemConfig): Promise<string | null> => {
       const data = await response.json();
       const token = data.token || data.accessToken || data.data?.token;
       if (token) {
+		debugLog("AUTH_SUCCESS", "Token received and cached.");
         cachedToken = token;
         localStorage.setItem('omnipim_infra_token', token);
         return token;
       }
+	  else{
+		debugLog("AUTH_PARSE_FAIL", "HTTP 200 OK but no token found in JSON response body", true);
+		return null;
+	  }
+    } catch (err) {
+      debugLog("AUTH_NETWORK_CRASH", err, true);
       return null;
-    } catch { return null; }
+    }
   })();
+
+
+
+
 
   const token = await refreshPromise;
   refreshPromise = null;
@@ -165,17 +286,65 @@ export const api = {
   async updateProduct(config: SystemConfig, id: string, data: any) { return safeFetch(`${getBaseUrl(config)}/mdm_products/${encodeURIComponent(id)}`, config, { method: 'PUT', body: JSON.stringify(data) }); },
   async deleteProduct(config: SystemConfig, id: string) { return safeFetch(`${getBaseUrl(config)}/mdm_products/${encodeURIComponent(id)}`, config, { method: 'DELETE' }); },
 
-  // Categories
+  /**
+   * CHANGE: Consolidate all category logic into mdm_categories.
+   * Both primary and secondary categories now live in the same table, 
+   * distinguished by the 'type' field.
+   */
   async getCategories(config: SystemConfig) { return safeFetch(`${getBaseUrl(config)}/mdm_categories`, config); },
-  async createCategory(config: SystemConfig, data: any) { return safeFetch(`${getBaseUrl(config)}/mdm_categories`, config, { method: 'POST', body: JSON.stringify(data) }); },
-  async updateCategory(config: SystemConfig, id: string, data: any) { return safeFetch(`${getBaseUrl(config)}/mdm_categories/${encodeURIComponent(id)}`, config, { method: 'PUT', body: JSON.stringify(data) }); },
+/*
+  async createCategory(config: SystemConfig, data: any) 
+  { return safeFetch(`${getBaseUrl(config)}/mdm_categories`, config, { method: 'POST', body: JSON.stringify(data) }); },
+*/  
+// ✅ CHANGE (27 Dec 2025, 06:25 IST)
+// Ensure full payload (including `type`) is forwarded without mutation
+// ✅ CHANGE (27 Dec 2025, 06:25 IST)
+// Ensure full payload (including `type`) is forwarded without mutation
+async createCategory(config: SystemConfig, payload: any) {
+  console.log("[API][createCategory] Outgoing Payload:", {
+    ...payload,
+    timestampIST: new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })
+  });
+
+  return safeFetch(
+    `${getBaseUrl(config)}/mdm_categories`,
+    config,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    }
+  );
+}, 
+  
+// ✅ CHANGE (27 Dec 2025, 06:25 IST)
+// Preserve category `type` during updates
+async updateCategory(config: SystemConfig, id: string, payload: any) {
+  console.log("[API][updateCategory] Outgoing Payload:", {
+    id,
+    type: payload.type,
+    timestampIST: new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })
+  });
+
+  return safeFetch(
+    `${getBaseUrl(config)}/mdm_categories/${encodeURIComponent(id)}`,
+    config,
+    {
+      method: 'PUT',
+      body: JSON.stringify(payload)
+    }
+  );
+},
+
   async deleteCategory(config: SystemConfig, id: string) { return safeFetch(`${getBaseUrl(config)}/mdm_categories/${encodeURIComponent(id)}`, config, { method: 'DELETE' }); },
 
-  // Secondary Categories (Table 10)
-  async getSecondaryCategories(config: SystemConfig) { return safeFetch(`${getBaseUrl(config)}/mdm_secondary_categories`, config); },
-  async createSecondaryCategory(config: SystemConfig, data: any) { return safeFetch(`${getBaseUrl(config)}/mdm_secondary_categories`, config, { method: 'POST', body: JSON.stringify(data) }); },
-  async updateSecondaryCategory(config: SystemConfig, id: string, data: any) { return safeFetch(`${getBaseUrl(config)}/mdm_secondary_categories/${encodeURIComponent(id)}`, config, { method: 'PUT', body: JSON.stringify(data) }); },
-  async deleteSecondaryCategory(config: SystemConfig, id: string) { return safeFetch(`${getBaseUrl(config)}/mdm_secondary_categories/${encodeURIComponent(id)}`, config, { method: 'DELETE' }); },
+  /**
+   * CHANGE: Secondary category methods now also point to mdm_categories.
+   * This ensures that any existing logic still works while using the correct unified table.
+   */
+  async getSecondaryCategories(config: SystemConfig) { return safeFetch(`${getBaseUrl(config)}/mdm_categories`, config); },
+  async createSecondaryCategory(config: SystemConfig, data: any) { return safeFetch(`${getBaseUrl(config)}/mdm_categories`, config, { method: 'POST', body: JSON.stringify(data) }); },
+  async updateSecondaryCategory(config: SystemConfig, id: string, data: any) { return safeFetch(`${getBaseUrl(config)}/mdm_categories/${encodeURIComponent(id)}`, config, { method: 'PUT', body: JSON.stringify(data) }); },
+  async deleteSecondaryCategory(config: SystemConfig, id: string) { return safeFetch(`${getBaseUrl(config)}/mdm_categories/${encodeURIComponent(id)}`, config, { method: 'DELETE' }); },
 
   // Attribute Groups (Best Practice UI)
   async getAttributeGroups(config: SystemConfig) { return safeFetch(`${getBaseUrl(config)}/mdm_attribute_groups`, config); },
